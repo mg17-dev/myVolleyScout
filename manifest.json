@@ -1,6 +1,6 @@
 {
-  "name": "myVolleyScout",
-  "short_name": "myVolleyScout",
+  "name": "myScout",
+  "short_name": "myScout",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
