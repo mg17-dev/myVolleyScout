@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0d6efd">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>myVolleyScout</title>
+    <link rel="stylesheet" href="libs/bootstrap/css/bootstrap.min.css">
+    
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>myScout</h1>
+
+        <div class="text-end mb-3">
+            <button id="iniziaPartita" class="btn btn-success d-none">Inizia Partita</button>
+        </div>
+
+
+        <!-- Sezione Caricamento File -->
+        <div class="mb-3">
+            <label for="fileAtleti" class="form-label">Carica Atleti (atleti.xlsx)</label>
+            <input class="form-control" type="file" id="fileAtleti">
+        </div>
+
+        <div id="sezioneAtleti" class="mb-3 d-none">
+            <h2>Lista Atleti</h2>
+            <table class="table table-striped" id="tabellaAtleti">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Cognome</th>
+                        <th>Ruolo</th>
+                        <th>Numero Maglia</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Dati delle atlete verranno inseriti qui -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mb-3">
+            <label for="filePartite" class="form-label">Carica Partite (partite.xlsx)</label>
+            <input class="form-control" type="file" id="filePartite">
+        </div>
+
+        <!-- Sezione Selezione Partita -->
+        <div id="selezionePartita" class="mb-3 d-none">
+            <label for="selectPartita" class="form-label">Scegli la partita</label>
+            <select class="form-select" id="selectPartita"></select>
+        </div>
+
+        <!-- Sezione Selezione Formazione -->
+        <div id="selezioneFormazione" class="mb-3 d-none">
+            <h2>Seleziona la formazione</h2>
+            <div class="row">
+                <div class="col-md-4">
+                    <label for="player1" class="form-label">Giocatore 1</label>
+                    <select class="form-select" id="player1"></select>
+                </div>
+                <div class="col-md-4">
+                    <label for="player2" class="form-label">Giocatore 2</label>
+                    <select class="form-select" id="player2"></select>
+                </div>
+                <!-- Ripeti per i giocatori 3-6 + libero -->
+            </div>
+            <button id="confermaFormazione" class="btn btn-primary mt-3">Conferma Formazione</button>
+        </div>
+
+        <!-- Sezione Azioni Partita -->
+        <div id="azioniPartita" class="d-none">
+            <h2>Partita in Corso</h2>
+            <!-- Qui andranno i pulsanti per le azioni -->
+        </div>
+    </div>
+
+    <script src="libs/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script src="libs/xlsx/xlsx.full.min.js"></script>
+    <script src="app.js"></script>
+
+
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (confirm('Nuova versione disponibile. Ricaricare ora?')) location.reload();
+        });
+      }
+    </script>
+
+
+</body>
+</html>

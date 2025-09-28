@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0d6efd">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>myVolleyScout</title>
+    <link rel="stylesheet" href="libs/bootstrap/css/bootstrap.min.css">
+    <style>
+        /* Stile per il toast di errore */
+        #errorToast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1050;
+            display: none;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+
+<script src="libs/html2canvas.min.js"></script>
+
+
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>Partita in Corso | <span id="infoPartita" style="font-size: 1.5rem;"></span></h1>
+
+        <!-- Nav tabs per i set -->
+        <ul class="nav nav-tabs" id="setTabs" role="tablist"></ul>
+
+        <!-- Contenuto dei tab -->
+        <div class="tab-content" id="setTabsContent"></div>
+
+        <!-- Toast per gli errori -->
+        <div id="errorToast" class="toast align-items-center text-white bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body">
+                    Errore: Puoi selezionare solo 6 giocatori e 1 libero!
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script per le statistiche -->
+    <script src="statistiche.js"></script>
+    <script src="scoutPartita.js"></script>
+
+
+    <script>
+    const numSet = 5;
+    let cronologiePerSet = {}; // Inizializza l'oggetto correttamente qui
+    let cronologiaCorrente = [];
+    let setIdCorrente = 1; // Inizializza con il set 1
+
+    // Aggiungiamo i contatori per Punti Generici ed Errori Generici
+    let puntiGenerici = {};
+    let erroriGenerici = {};
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const setTabs = document.getElementById('setTabs');
+        const setTabsContent = document.getElementById('setTabsContent');
+
+        // Genera dinamicamente i bottoni dei set e il contenuto
+        for (let i = 1; i <= numSet; i++) {
+            cronologiePerSet[i] = [];  // Inizializza un array vuoto per ogni set
+            puntiGenerici[i] = 0;  // Inizializza i contatori per ogni set
+            erroriGenerici[i] = 0;
+
+            // Creazione dei tab dei set
+            const tabItem = document.createElement('li');
+            tabItem.classList.add('nav-item');
+            tabItem.setAttribute('role', 'presentation');
+
+            const tabButton = document.createElement('button');
+            tabButton.classList.add('nav-link');
+            if (i === 1) tabButton.classList.add('active');
+            tabButton.id = `set${i}-tab`;
+            tabButton.setAttribute('data-bs-toggle', 'tab');
+            tabButton.setAttribute('data-bs-target', `#set${i}`);
+            tabButton.setAttribute('type', 'button');
+            tabButton.setAttribute('role', 'tab');
+            tabButton.setAttribute('aria-controls', `set${i}`);
+            tabButton.setAttribute('aria-selected', i === 1 ? 'true' : 'false');
+            tabButton.textContent = `Set ${i}`;
+
+            // Quando cambia set, aggiorna il setIdCorrente
+            tabButton.addEventListener('click', function () {
+                setIdCorrente = i;  // Aggiorna il set corrente
+                cronologiaCorrente = cronologiePerSet[setIdCorrente];  // Cambia la cronologia corrente
+                aggiornaVisualizzazioneCronologia(setIdCorrente); // Aggiorna la cronologia del nuovo set
+                console.log(`Set corrente cambiato: ${setIdCorrente}`);
+            });
+
+            tabItem.appendChild(tabButton);
+            setTabs.appendChild(tabItem);
+
+            // Creazione del contenuto dei set
+            const tabPane = document.createElement('div');
+            tabPane.classList.add('tab-pane', 'fade');
+            if (i === 1) tabPane.classList.add('show', 'active');
+            tabPane.id = `set${i}`;
+            tabPane.setAttribute('role', 'tabpanel');
+            tabPane.setAttribute('aria-labelledby', `set${i}-tab`);
+
+            const subTabsList = `
+            <!-- Sottotabs -->
+            <ul class="nav nav-pills mb-3" id="set${i}SubTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="formazione${i}-tab" data-bs-toggle="pill" data-bs-target="#formazione${i}" type="button" role="tab" aria-controls="formazione${i}" aria-selected="true">Formazione in Campo</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                <button class="nav-link" id="scout${i}-tab" data-bs-toggle="pill" data-bs-target="#scout${i}" type="button" role="tab" aria-controls="scout${i}" aria-selected="false">Scout</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                <button class="nav-link" id="analisi${i}-tab" data-bs-toggle="pill" data-bs-target="#analisi${i}" type="button" role="tab" aria-controls="analisi${i}" aria-selected="false">Analisi Set ${i}</button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="set${i}SubTabsContent">
+            <div class="tab-pane fade show active" id="formazione${i}" role="tabpanel" aria-labelledby="formazione${i}-tab">
+            <p id="contatoreSelezioni${i}" class="mb-3 fw-lighter fst-italic text-end">Giocatori selezionati 0/6 | Libero selezionato 0/1</p>
+            <table class="table table-striped table-sm" id="formazioneTable${i}">
+            <thead>
+            <tr>
+            <th>Nome</th>
+            <th>Cognome</th>
+            <th>Ruolo</th>
+            <th>Numero Maglia</th>
+            <th>Seleziona</th>
+            </tr>
+            </thead>
+            <tbody></tbody>
+            </table>
+            </div>
+
+            <div class="tab-pane fade" id="scout${i}" role="tabpanel" aria-labelledby="scout${i}-tab">
+            <div id="azioniScout${i}" class="container">
+            <div class="row">
+            <div class="col-8 hidden" id="colSelezioneAtlete${i}"></div>
+            <div class="col-8" id="colAzioniAtlete${i}">
+            <!-- Bottoni per le azioni di Battuta -->
+            <div class="col-12">
+            <h6>Battuta</h6>
+            <div class="row">
+            <div class="col mb-2">
+            <button class="btn btn-success btn-sm action-btn w-100" data-action="Battuta #">Battuta #</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-primary btn-sm action-btn w-100" data-action="Battuta /">Battuta /</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-primary btn-sm action-btn w-100" data-action="Battuta +">Battuta +</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-secondary btn-sm action-btn w-100" data-action="Battuta -">Battuta -</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-danger btn-sm action-btn w-100" data-action="Battuta =">Battuta =</button>
+            </div>
+            </div>
+            </div>
+
+            <!-- Bottoni per le azioni di Ricezione -->
+            <div class="col-12">
+            <h6>Ricezione</h6>
+            <div class="row">
+            <div class="col mb-2">
+            <button class="btn btn-success btn-sm action-btn w-100" data-action="Ricezione #">Ricezione #</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-primary btn-sm action-btn w-100" data-action="Ricezione +">Ricezione +</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-primary btn-sm action-btn w-100" data-action="Ricezione !">Ricezione !</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-secondary btn-sm action-btn w-100" data-action="Ricezione -">Ricezione -</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-danger btn-sm action-btn w-100" data-action="Ricezione /">Ricezione /</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-danger btn-sm action-btn w-100" data-action="Ricezione =">Ricezione =</button>
+            </div>
+            </div>
+            </div>
+
+            <!-- Bottoni per le azioni di Attacco -->
+            <div class="col-12">
+            <h6>Attacco</h6>
+            <div class="row">
+            <div class="col mb-2">
+            <button class="btn btn-success btn-sm action-btn w-100" data-action="Attacco #">Attacco #</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-primary btn-sm action-btn w-100" data-action="Attacco +">Attacco +</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-secondary btn-sm action-btn w-100" data-action="Attacco -">Attacco -</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-danger btn-sm action-btn w-100" data-action="Attacco /">Attacco /</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-danger btn-sm action-btn w-100" data-action="Attacco =">Attacco =</button>
+            </div>
+            </div>
+            </div>
+
+            <!-- Bottoni per le azioni di Muro -->
+            <div class="col-12">
+            <h6>Muro</h6>
+            <div class="row">
+            <div class="col mb-2">
+            <button class="btn btn-success btn-sm action-btn w-100" data-action="Muro #">Muro #</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-primary btn-sm action-btn w-100" data-action="Muro +">Muro +</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-secondary btn-sm action-btn w-100" data-action="Muro -">Muro -</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-danger btn-sm action-btn w-100" data-action="Muro /">Muro /</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-danger btn-sm action-btn w-100" data-action="Muro =">Muro =</button>
+            </div>
+            </div>
+            </div>
+
+            <!-- Bottoni per le azioni di Difesa -->
+            <div class="col-12">
+            <h6>Difesa</h6>
+            <div class="row">
+            <div class="col mb-2">
+            <button class="btn btn-success btn-sm action-btn w-100" data-action="Difesa #">Difesa #</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-primary btn-sm action-btn w-100" data-action="Difesa +">Difesa +</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-primary btn-sm action-btn w-100" data-action="Difesa !">Difesa !</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-secondary btn-sm action-btn w-100" data-action="Difesa -">Difesa -</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-danger btn-sm action-btn w-100" data-action="Difesa /">Difesa /</button>
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-danger btn-sm action-btn w-100" data-action="Difesa =">Difesa =</button>
+            </div>
+            </div>
+            </div>
+
+            <!-- Bottoni per eventi generici -->
+            <div class="col-12">
+            <h6>Eventi Generici</h6>
+            <div class="row">
+            <div class="col mb-2">
+            <button class="btn btn-info btn-sm w-100" id="puntoGenerico-${i}">Punto Generico</button>
+            <span id="puntiGenerici-${i}" class="badge bg-info text-dark">0</span> <!-- Contatore Punti Generici -->
+            </div>
+            <div class="col mb-2">
+            <button class="btn btn-danger btn-sm w-100" id="erroreGenerico-${i}">Errore Generico</button>
+            <span id="erroriGenerici-${i}" class="badge bg-danger">0</span> <!-- Contatore Errori Generici -->
+            </div>
+            </div>
+            </div>
+
+            <!-- Legenda -->
+            <div class="col-12">
+            <p class="mb-0">Legenda</p>
+            <div class="row mt-0">
+            <p style="font-size: 0.6rem">
+            BATTUTA: # Ace ,  /  Palla ricevuta nel nostro campo ,  +  Ricezione staccata ,  -  Buona Ricezione avversaria ,  =  Errore. <br>
+            RICEZIONE: # Perfetta ,  +  Ricezione permette 1° Tempo , !  Ricezione sui 3 m ,  -  Ricezione neg. ,  /  Ricezione diretta al campo avversario ,  =  Ace subito. <br>
+            ATTACCO: #  Punto ,  +  Avversario ci da free ball ,  - Avversario contrattacca ,  / Murato ,  =  Errore. <br>
+            MURO: #  Punto ,  +  Avversario ci da freeball ,  -  Avversario contrattacca ,  /  Invasione   ,  =  Mano e fuori subito.<br>
+            DIFESA: # Perfetta ,  +  Permette 1° Tempo , !  Difesa sui 3 m ,  -  Difesa neg. ,  /  Difesa diretta al campo avversario ,  =  Punto subito. <br>
+            </p>
+            </div>
+            </div>  
+            </div>
+            <div class="col">
+            <!-- Sezione Cronologia e Undo -->
+            <h6>Cronologia Azioni</h6>
+            <div id="cronologiaAzioni-${i}" class="border p-2" style="height: 300px;overflow-y: auto; font-size: 0.8rem;">
+            </div>
+            <button class="btn btn-outline-dark btn-sm mt-2 w-100" id="undoButton-${i}">Elimina ultima azione</button>
+            <button class="btn btn-warning btn-sm mt-2 w-100" onclick="scaricaCronologia(${i})">Scarica cronologia</button>
+            </div>     
+            </div>
+            </div>
+
+            <div id="selezionaAtleta${i}" class="d-none">
+            <div id="giocatriciCampo${i}"></div>
+            </div>
+            </div>
+
+            <div class="tab-pane fade" id="analisi${i}" role="tabpanel" aria-labelledby="analisi${i}-tab">
+            <div class="row p-3">
+            <!-- Tabella prestazioni atlete per il set ${i} -->
+            <table class="table table-striped" id="prestazioniTable${i}">
+            <thead>
+            <tr>
+            <th>Cognome</th>
+            <th>Maglia</th>
+            <th>Ruolo</th>
+            <th>Battuta</th>
+            <th>Ricezione</th>
+            <th>Attacco</th>
+            <th>Muro</th>
+            <th>Difesa</th>
+            </tr>
+            </thead>
+            <tbody>
+            <!-- Le righe verranno aggiunte dinamicamente -->
+            </tbody>
+            </table>
+            <div><p style="font-size: 0.6rem">
+            BATTUTA E' POSITIVA SE: # , / , + <br>
+            RICEZIONE E' POSITIVA SE: # , + , !  <br>
+            ATTACCO E' POSITIVO SE: #<br>
+            MURO E' POSITIVO SE: # , +<br>
+            DIFESA E' POSITIVA SE: # , + , !  <br>
+            </p>
+            </div>
+            </div>
+            </div>
+
+
+            </div>
+            `;
+
+            tabPane.innerHTML = subTabsList;
+            setTabsContent.appendChild(tabPane);
+
+// Event listeners per i bottoni di eventi generici
+document.getElementById(`puntoGenerico-${i}`).addEventListener('click', function() {
+    addLogToCronologia(`Punto generico (Set ${i})`, i);
+    puntiGenerici[i]++;  // Incrementa il contatore dei punti generici
+    document.getElementById(`puntiGenerici-${i}`).textContent = puntiGenerici[i];  // Aggiorna il display
+    aggiornaTabellaStatisticheGeneriche();  // Aggiorna la tabella generale
+});
+
+document.getElementById(`erroreGenerico-${i}`).addEventListener('click', function() {
+    addLogToCronologia(`Errore generico (Set ${i})`, i);
+    erroriGenerici[i]++;  // Incrementa il contatore degli errori generici
+    document.getElementById(`erroriGenerici-${i}`).textContent = erroriGenerici[i];  // Aggiorna il display
+    aggiornaTabellaStatisticheGeneriche();  // Aggiorna la tabella generale
+});
+
+
+            // Aggiungi listener per Undo specifico per ogni set
+            document.getElementById(`undoButton-${i}`).addEventListener('click', function() {
+                undoUltimaAzione(i); // Funzione specifica per undo per ogni set
+            });
+        }
+
+        // Cambia la cronologia corrente per il set 1 inizialmente
+        cronologiaCorrente = cronologiePerSet[1];
+
+        // Genera il tab delle statistiche della partita alla fine
+        generaTabStatistichePartita();
+    });
+
+    // Funzione per generare il nuovo tab "Statistiche Partita"
+    function generaTabStatistichePartita() {
+        const setTabs = document.getElementById('setTabs');
+        const setTabsContent = document.getElementById('setTabsContent');
+
+        // Crea il nuovo tab per "Statistiche Partita"
+        const tabItem = document.createElement('li');
+        tabItem.classList.add('nav-item');
+        tabItem.setAttribute('role', 'presentation');
+
+        const tabButton = document.createElement('button');
+        tabButton.classList.add('nav-link');
+        tabButton.id = 'statistichePartita-tab';
+        tabButton.setAttribute('data-bs-toggle', 'tab');
+        tabButton.setAttribute('data-bs-target', '#statistichePartita');
+        tabButton.setAttribute('type', 'button');
+        tabButton.setAttribute('role', 'tab');
+        tabButton.setAttribute('aria-controls', 'statistichePartita');
+        tabButton.setAttribute('aria-selected', 'false');
+        tabButton.textContent = 'Statistiche Partita';
+
+        tabItem.appendChild(tabButton);
+        setTabs.appendChild(tabItem);
+
+        // Crea il contenuto del tab "Statistiche Partita"
+        const tabPane = document.createElement('div');
+        tabPane.classList.add('tab-pane', 'fade');
+        tabPane.id = 'statistichePartita';
+        tabPane.setAttribute('role', 'tabpanel');
+        tabPane.setAttribute('aria-labelledby', 'statistichePartita-tab');
+
+        const tabContent = `
+        <div class="row p-3">
+            <table class="table table-striped table-bordered" id="statistichePartitaTable">
+                <thead>
+                    <tr>
+                        <th rowspan="2">Cognome</th>
+                        <th rowspan="2">Maglia</th>
+                        <th colspan="5">Battuta</th>
+                        <th colspan="6">Ricezione</th>
+                        <th colspan="5">Attacco</th>
+                        <th colspan="5">Muro</th>
+                        <th colspan="6">Difesa</th>
+                        <th rowspan="2" class="bg-info">PF</th>
+                        <th rowspan="2" class="bg-info">PS</th>
+                        <th rowspan="2" class="bg-info">Eff.</th>
+                    </tr>
+                    <tr>
+                        <th>#</th><th>/</th><th>+</th><th>-</th><th>=</th>
+                        <th>#</th><th>+</th><th>!</th><th>-</th><th>/</th><th>=</th>
+                        <th>#</th><th>+</th><th>-</th><th>/</th><th>=</th>
+                        <th>#</th><th>+</th><th>-</th><th>/</th><th>=</th>
+                        <th>#</th><th>+</th><th>!</th><th>-</th><th>/</th><th>=</th>
+                    </tr>
+                </thead>
+                <tbody id="statistichePartitaBody">
+                </tbody>
+            </table>
+        </div>
+        <div class="row p-3">
+        <!-- Nuova tabella per errori e punti generici -->
+        <h5>Statistiche Generali di Squadra</h5>
+        <table class="table table-striped" id="statisticheGenericheTable">
+            <thead>
+                <tr>
+                    <th>Set</th>
+                    <th>Punti Generici</th>
+                    <th>Errori Generici</th>
+                </tr>
+            </thead>
+            <tbody id="statisticheGenericheBody">
+                <!-- Le righe verranno aggiunte dinamicamente -->
+            </tbody>
+        </table>
+        <button id="downloadScreenshot" class="btn btn-primary mb-3">Download Statistiche</button>
+    </div>
+        `;
+
+        tabPane.innerHTML = tabContent;
+        setTabsContent.appendChild(tabPane);
+
+// Aggiungi l'event listener al pulsante di download
+document.getElementById('downloadScreenshot').addEventListener('click', function() {
+    const element = document.getElementById('statistichePartita'); // ID del tab da catturare
+    
+    // Nascondi il pulsante di download prima di catturare lo screenshot
+    document.getElementById('downloadScreenshot').style.display = 'none';
+
+    // Impostiamo la dimensione di A4 in pixel (3508x2480px per un A4 landscape a 300dpi)
+    const A4_WIDTH = 1300;
+    const A4_HEIGHT = 1200;
+
+    html2canvas(element, {
+        width: A4_WIDTH,  // Larghezza A4 in landscape
+        height: A4_HEIGHT,  // Altezza A4 in landscape
+        scale: 2  // Aumenta la qualità dello screenshot
+    }).then(function(canvas) {
+        const link = document.createElement('a');
+        link.href = canvas.toDataURL('image/png');
+        link.download = 'statistiche_partita.png';
+        link.click();
+
+        // Riporta il pulsante di download a visibile dopo lo screenshot
+        document.getElementById('downloadScreenshot').style.display = 'block';
+    });
+});
+
+
+        // Genera la tabella delle statistiche della partita
+        generaTabellaStatistichePartita();
+        // Inizializza la tabella errori generici e punti generici
+        aggiornaTabellaStatisticheGeneriche();  
+    }
+    </script>
+
+    <script src="libs/bootstrap/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const atleti = JSON.parse(localStorage.getItem('atleti'));
+        const partita = JSON.parse(localStorage.getItem('partita'));
+        const maxSelezioni = 7;
+        const liberoRuolo = 'libero';
+
+        // Mostra i dettagli della partita
+        const dataPartita = partita['DATA'];
+        const oraPartita = partita['ORA'];
+        document.getElementById('infoPartita').textContent = `${partita['SQUADRA IN CASA']} vs ${partita['SQUADRA FUORI CASA']} - ${dataPartita} ore ${oraPartita}`;
+
+        function setupActionButtons(selezionate) {
+            if (!Array.isArray(selezionate)) {
+    selezionate = []; // Inizializza come array se non lo è
+}
+
+const azioniDiv = document.getElementById(`colAzioniAtlete${setIdCorrente}`);
+const selezionaAtletaDiv = document.getElementById(`colSelezioneAtlete${setIdCorrente}`);
+
+document.querySelectorAll(`#colAzioniAtlete${setIdCorrente} .action-btn`).forEach(button => {
+    button.addEventListener('click', function () {
+        const azioneSelezionata = this.getAttribute('data-action');
+        // Nascondi le azioni e mostra le atlete
+        azioniDiv.classList.add('hidden');
+        selezionaAtletaDiv.classList.remove('hidden');
+        mostraAtleteInGioco(selezionate, azioneSelezionata);
+    });
+});
+}
+
+
+    // Funzione che mostra le atlete selezionate e permette di cliccare su una di loro, suddivise per ruolo
+function mostraAtleteInGioco(selezionate, azioneSelezionata) {
+    if (!Array.isArray(selezionate)) {
+        console.error('Errore: selezionate non è un array', selezionate);
+    return; // Interrompi se `selezionate` non è un array
+}
+
+const selezionaAtletaDiv = document.getElementById(`colSelezioneAtlete${setIdCorrente}`);
+const azioniAtletaDiv = document.getElementById(`colAzioniAtlete${setIdCorrente}`);
+
+selezionaAtletaDiv.innerHTML = ''; // Svuota le atlete esistenti
+
+const atletePerRuolo = {}; // Raggruppa le atlete per ruolo
+
+selezionate.forEach(index => {
+    const atleta = atleti[index];
+    const ruolo = atleta['RUOLO'].toLowerCase();
+
+    if (!atletePerRuolo[ruolo]) {
+        atletePerRuolo[ruolo] = [];
+    }
+    atletePerRuolo[ruolo].push(atleta);
+});
+
+Object.keys(atletePerRuolo).forEach(ruolo => {
+    const roleDiv = document.createElement('div');
+    roleDiv.classList.add('col-12', 'mb-2');
+    const title = document.createElement('h6');
+    title.textContent = ruolo.charAt(0).toUpperCase() + ruolo.slice(1);
+    roleDiv.appendChild(title);
+
+    const rowDiv = document.createElement('div');
+    rowDiv.classList.add('row');
+
+    atletePerRuolo[ruolo].forEach(atleta => {
+        const colDiv = document.createElement('div');
+        colDiv.classList.add('col', 'mb-0');
+        const atletaButton = document.createElement('button');
+        atletaButton.classList.add('btn', 'btn-info', 'btn-sm', 'w-100');
+        atletaButton.textContent = `${atleta['COGNOME']} ${atleta['N. MAGLIA']}`;
+
+        atletaButton.addEventListener('click', function () {
+            addLogToCronologia(`${azioneSelezionata} di ${atleta['COGNOME']} ${atleta['N. MAGLIA']}`, setIdCorrente);
+            aggiornaStatistiche(atleta['N. MAGLIA'], azioneSelezionata.split(' ')[0].toLowerCase(), azioneSelezionata.split(' ')[1], setIdCorrente);
+
+            selezionaAtletaDiv.classList.add('hidden');
+            azioniAtletaDiv.classList.remove('hidden');
+        });
+
+        colDiv.appendChild(atletaButton);
+        rowDiv.appendChild(colDiv);
+    });
+
+    roleDiv.appendChild(rowDiv);
+    selezionaAtletaDiv.appendChild(roleDiv);
+});
+}
+
+
+
+    // Gestisce la selezione delle atlete in ogni set (Formazione)
+for (let i = 1; i <= numSet; i++) {
+    const tbody = document.getElementById(`formazioneTable${i}`).querySelector('tbody');
+let selezionate = []; // Inizializza come array vuoto per ogni set
+let liberoSelezionato = false;
+
+atleti.forEach((atleta, index) => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+    <td>${atleta['NOME']}</td>
+    <td>${atleta['COGNOME']}</td>
+    <td>${atleta['RUOLO']}</td>
+    <td>${atleta['N. MAGLIA']}</td>
+    <td><button class="btn btn-primary btn-sm" id="selectBtn${i}-${index}">Seleziona</button></td>
+    `;
+    tbody.appendChild(row);
+
+    // Gestione del click per selezionare/deselezionare
+    document.getElementById(`selectBtn${i}-${index}`).addEventListener('click', function () {
+        const ruoloAtleta = atleta['RUOLO'].toLowerCase();
+        const isLibero = ruoloAtleta === liberoRuolo;
+        const contatoreElement = document.getElementById(`contatoreSelezioni${i}`);
+        let numGiocatoriSelezionati = selezionate.filter(index => atleti[index]['RUOLO'].toLowerCase() !== liberoRuolo).length;
+        let numLiberoSelezionato = liberoSelezionato ? 1 : 0;
+
+        if (!selezionate.includes(index)) {
+            if (numGiocatoriSelezionati < 6 || (isLibero && !liberoSelezionato)) {
+                selezionate.push(index);
+                this.textContent = "Deseleziona";
+                this.classList.remove('btn-primary');
+                this.classList.add('btn-secondary');
+                row.classList.add('table-success');
+
+                if (isLibero) {
+                    liberoSelezionato = true;
+                    numLiberoSelezionato = 1;
+                } else {
+                    numGiocatoriSelezionati++;
+                }
+
+                aggiornaPrestazioniAtlete(atleta, i);
+
+            } else {
+                mostraErrore();
+            }
+        } else {
+            selezionate = selezionate.filter(i => i !== index);
+            this.textContent = "Seleziona";
+            this.classList.remove('btn-secondary');
+            this.classList.add('btn-primary');
+            row.classList.remove('table-success');
+
+            if (isLibero) {
+                liberoSelezionato = false;
+                numLiberoSelezionato = 0;
+            } else {
+                numGiocatoriSelezionati--;
+            }
+        }
+
+        contatoreElement.textContent = `Giocatori selezionati ${numGiocatoriSelezionati}/6 | Libero selezionato ${numLiberoSelezionato}/1`;
+
+        // Avvia gestione delle azioni e selezione delle atlete
+        setupActionButtons(selezionate);  // Passa `selezionate` come array
+    });
+});
+}
+
+
+
+    // Funzione per mostrare il toast di errore
+function mostraErrore() {
+    const errorToast = document.getElementById('errorToast');
+        errorToast.style.display = 'block'; // Mostra il toast
+        setTimeout(() => {
+            errorToast.style.display = 'none'; // Nasconde il toast dopo 2 secondi
+        }, 2000);
+    }
+});
+</script>
+
+<!-- Script per la cronologia -->
+<script>
+// Script per la gestione della cronologia e dell'Undo
+    function addLogToCronologia(logEntry, setId = setIdCorrente) {
+// Verifica che cronologiePerSet[setId] sia definito e sia un array
+        if (!cronologiePerSet[setId]) {
+    cronologiePerSet[setId] = [];  // Inizializza l'array se non esiste
+}
+
+cronologiePerSet[setId].push(logEntry); // Aggiunge l'azione alla cronologia del set
+cronologiaCorrente = cronologiePerSet[setId]; // Aggiorna la cronologia corrente
+aggiornaVisualizzazioneCronologia(setId); // Aggiorna la visualizzazione della cronologia
+}
+
+
+
+function aggiornaVisualizzazioneCronologia(setId) {
+    const cronologiaDiv = document.getElementById(`cronologiaAzioni-${setId}`);
+    cronologiaDiv.innerHTML = ''; // Svuota la cronologia precedente
+
+    // Stampa ogni azione in una nuova riga
+    cronologiaCorrente.forEach((azione, index) => {
+        const p = document.createElement('p');
+        p.textContent = `${index + 1}. ${azione}`;
+        cronologiaDiv.appendChild(p);
+    });
+
+    // Scorri automaticamente verso il basso
+    cronologiaDiv.scrollTop = cronologiaDiv.scrollHeight;
+}
+
+function undoUltimaAzione(setId) {
+    if (cronologiePerSet[setId].length > 0) {
+        const ultimaAzione = cronologiePerSet[setId].pop(); // Rimuove l'ultima azione
+        
+        // Analizza l'ultima azione e recupera i dettagli
+        const [fondamentale, atletaId, esito] = parseUltimaAzione(ultimaAzione);
+
+        if (fondamentale === 'punto' && esito === 'generico') {
+            // Decrementa i punti generici
+            puntiGenerici[setId]--;
+            aggiornaTabellaStatisticheGeneriche();  // Aggiorna la tabella dei punti generici
+
+            // Aggiorna il contatore visivo dei punti generici
+            document.getElementById(`puntiGenerici-${setId}`).textContent = puntiGenerici[setId];
+
+        } else if (fondamentale === 'errore' && esito === 'generico') {
+            // Decrementa gli errori generici
+            erroriGenerici[setId]--;
+            aggiornaTabellaStatisticheGeneriche();  // Aggiorna la tabella degli errori generici
+
+            // Aggiorna il contatore visivo degli errori generici
+            document.getElementById(`erroriGenerici-${setId}`).textContent = erroriGenerici[setId];
+
+        } else {
+            // Rimuove l'azione dalle statistiche individuali e totali
+            rimuoviAzioneStatistiche(atletaId, fondamentale, esito, setId);
+        }
+
+        // Aggiorna la cronologia visiva
+        aggiornaVisualizzazioneCronologia(setId);
+    }
+}
+
+
+
+function parseUltimaAzione(azione) {
+    const dettagli = azione.split(' '); // Es. "Battuta # di Rossi 13" -> ["Battuta", "#", "di", "Rossi", "13"]
+    const fondamentale = dettagli[0]?.toLowerCase(); // Verifica che fondamentale esista
+    const esito = dettagli[1];
+    const atletaId = dettagli[dettagli.length - 1]; // L'ultimo elemento è l'atleta ID
+
+    // Log per verificare che i dati siano corretti
+    console.log(`Parsing azione: fondamentale=${fondamentale}, esito=${esito}, atletaId=${atletaId}`);
+
+    return [fondamentale, atletaId, esito];
+}
+
+
+function scaricaCronologia(setId) {
+    const blob = new Blob([cronologiePerSet[setId].join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cronologia_set_${setId}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+
+</script>
+
+<!-- Script per la tabella prestativa -->
+<script type="text/javascript">
+// Script per aggiornare la tabella delle prestazioni
+let atleteInTabella = {}; // Oggetto per tracciare le atlete già aggiunte alla tabella per ogni set
+
+function aggiornaPrestazioniAtlete(atleta, setId) {
+    const prestazioniTable = document.getElementById(`prestazioniTable${setId}`);
+
+    if (!prestazioniTable) {
+        console.error(`La tabella delle prestazioni per il set ${setId} non è stata trovata.`);
+        return;
+    }
+
+    const tbody = prestazioniTable.querySelector('tbody');
+
+// Verifica se l'atleta è già stata aggiunta alla tabella
+    if (atleteInTabella[`${atleta['N. MAGLIA']}-${setId}`]) {
+        return;
+    }
+
+// Crea una nuova riga per l'atleta nella tabella
+    const row = document.createElement('tr');
+    row.id = `row-${atleta['N. MAGLIA']}-${setId}`;
+
+    row.innerHTML = `
+    <td>${atleta['COGNOME']}</td>
+    <td>${atleta['N. MAGLIA']}</td>
+    <td>${atleta['RUOLO']}</td>
+    <td id="battuta-${atleta['N. MAGLIA']}-${setId}"></td>
+    <td id="ricezione-${atleta['N. MAGLIA']}-${setId}"></td>
+    <td id="attacco-${atleta['N. MAGLIA']}-${setId}"></td>
+    <td id="muro-${atleta['N. MAGLIA']}-${setId}"></td>
+    <td id="difesa-${atleta['N. MAGLIA']}-${setId}"></td>
+    `;
+
+    tbody.appendChild(row);
+
+// Segna l'atleta come già aggiunto alla tabella per questo set
+    atleteInTabella[`${atleta['N. MAGLIA']}-${setId}`] = true;
+}
+
+
+</script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (confirm('Nuova versione disponibile. Ricaricare ora?')) location.reload();
+    });
+  }
+</script>
+
+
+</body>
+</html>
