@@ -15,7 +15,8 @@ const PRECACHE = [
   'scoutPartita.js',
   'statistiche.js',
   // Librerie (usa i tuoi path reali)
-  'libs/xlsx/xlsx.full.min.js'
+  'libs/xlsx/xlsx.full.min.js',
+  'libs/html2canvas.min.js'
   // Icone
   //'icons/icon-192.png',
   //'icons/icon-512.png'
